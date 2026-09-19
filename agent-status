@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# agent-status — claude state glyph next to the tmux window name.
+# Called by Claude Code hooks (see claude-hooks.json):
+#   work  ◐  claude is working (UserPromptSubmit, PostToolUse)
+#   ask   !  waiting for you: permission or question (Notification, PreToolUse AskUserQuestion)
+#   done  ✓  answered, your turn (Stop)
+#   clear    remove the glyph (SessionEnd)
+# The glyph lives in the window option @agent; the status line and the p menu show it.
+# Does nothing outside tmux.
+
+[ -n "$TMUX_PANE" ] || exit 0
+
+case "$1" in
+    work) g='◐' ;;
+    ask)  g='!' ;;
+    done) g='✓' ;;
+    *)    g='' ;;
+esac
+
+if [ -n "$g" ]; then
+    tmux set -w -t "$TMUX_PANE" @agent "$g"
+else
+    tmux set -wu -t "$TMUX_PANE" @agent
+fi 2>/dev/null
+exit 0

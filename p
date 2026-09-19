@@ -90,7 +90,7 @@ echo
 for i in "${!names[@]}"; do
     n=${names[$i]}
     if grep -qx "$n" <<< "$open"; then
-        tabs=$(tmux list-windows -t "=$n" -F '#W' | paste -sd ' ')
+        tabs=$(tmux list-windows -t "=$n" -F '#W#{?@agent,#{@agent},}' | paste -sd ' ')
         printf "  %2d) %-12s ● %s\n" $((i + 1)) "$n" "$tabs"
     else
         saved=$(awk -F'\t' -v p="$n" '$1==p {print $2}' "$MANIFEST" | paste -sd ' ')
@@ -99,6 +99,7 @@ for i in "${!names[@]}"; do
 done
 echo
 echo "  ● open (windows listed)   ○ saved in the manifest, not running"
+echo "  claude in a window:  ◐ working   ! waiting for you   ✓ answered"
 echo "   r) restore all from manifest    f) forget a window"
 echo
 read -rp "  Project #: " num
