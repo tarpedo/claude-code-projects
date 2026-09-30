@@ -68,6 +68,17 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/bin/p bind",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

@@ -6,12 +6,15 @@
 #   p forget     close a window and drop it from the manifest
 #   p rename     rename a window together with its manifest row (F5)
 #   p add        register a project (name + directory)   p remove   unregister it
+#   p bind       (SessionStart hook) bind the session that just started in a window
 #   p help       cheat sheet (F7)
 # Projects live in ~/.config/p/projects.tsv ("name<TAB>dir"), edited via add/remove.
 #
 # Every new window (F2), a project's first window and restore all run
 # `p claude`: if ~/.config/p/sessions.tsv has a row "project window dir id"
 # and the transcript still exists — claude --resume, otherwise a new id and row.
+# Any other claude in a window (by hand, --resume, /resume, /clear) is bound by
+# the SessionStart hook → `p bind`.
 # Leaving claude drops you to bash; `exit` there removes the window from the
 # manifest (EXIT trap in ~/.bashrc), so restore only brings back open work.
 
@@ -68,6 +71,36 @@ claude_tab() {         # formerly ~/bin/c
     printf '%s\t%s\t%s\t%s\n' "$proj" "$tab" "$PWD" "$id" >> "$tmp"
     mv "$tmp" "$MANIFEST"
     exec claude --session-id "$id" "$@"
+}
+
+bind_session() {       # SessionStart hook: window ← session_id from stdin
+    [ -n "$TMUX_PANE" ] || return 0
+    local sid pid cpid pane proj tab cwd tmp
+    sid=$(grep -oE '"session_id" *: *"[0-9a-f-]{36}"' | grep -oE '[0-9a-f-]{36}')
+    [ -n "$sid" ] || return 0
+
+    # the nearest claude ancestor is the session that fired the hook
+    pid=$$
+    while pid=$(ps -o ppid= -p "$pid" | tr -d ' '); [ "${pid:-1}" -gt 1 ]; do
+        [ "$(ps -o comm= -p "$pid")" = claude ] && { cpid=$pid; break; }
+    done
+    [ -n "$cpid" ] || return 0
+
+    # bind only the window's main claude, not claude -p from scripts
+    pane=$(tmux display-message -p -t "$TMUX_PANE" '#{pane_pid}')
+    [ "$cpid" = "$pane" ] || [ "$(ps -o ppid= -p "$cpid" | tr -d ' ')" = "$pane" ] || return 0
+    tr '\0' ' ' < "/proc/$cpid/cmdline" | grep -qE ' (-p|--print)( |$)' && return 0
+
+    proj=$(tmux display-message -p -t "$TMUX_PANE" '#S')
+    tab=$(tmux display-message -p -t "$TMUX_PANE" '#W')
+    [ -n "$tab" ] || return 0
+    [ "$(id_of "$proj" "$tab")" = "$sid" ] && return 0
+
+    cwd=$(readlink "/proc/$cpid/cwd"); cwd=${cwd:-$PWD}
+    tmp=$(mktemp)
+    without "$proj" "$tab" > "$tmp"
+    printf '%s\t%s\t%s\t%s\n' "$proj" "$tab" "$cwd" "$sid" >> "$tmp"
+    mv "$tmp" "$MANIFEST"
 }
 
 rename() {             # F5: rename-window + the same key in the manifest
@@ -228,6 +261,7 @@ case "$1" in
     drop)    shift; drop "$@"; exit ;;
     rename)  rename "$2" "$3"; exit ;;
     restore) restore; exit ;;
+    bind)    bind_session; exit 0 ;;
     add)     shift; add_project "$@"; exit ;;
     remove)  shift; remove_project "$@"; exit ;;
     forget)  forget;  exit ;;
