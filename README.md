@@ -6,9 +6,9 @@ tmux project menu that keeps [Claude Code](https://docs.claude.com/en/docs/claud
 - `F2` — new window running claude, bound to a Claude Code session id in `~/.config/p/sessions.tsv`. `F2` with the same name later resumes the same conversation (`c` / `p claude` does the same in any window).
 - `F5` renames a window together with its binding, `F8` opens a plain shell, `F7` shows a cheat sheet.
 - `exit` in a window's shell forgets the window; a crash (SIGHUP) does not.
-- `p restore` (menu `r`) — after tmux dies, recreate every saved window and resume its session.
+- Restore is automatic: the first tmux server start after a crash or reboot recreates every saved window and resumes its session (`p restore` / menu `r` by hand). Requires `flock`.
 - `p forget` (menu `f`) — close a window and drop it from the manifest.
-- Agent state next to every window name: `◐` working, `!` waiting for you, `✓` answered.
+- Agent state next to every window name: `◐` working, `!` waiting for you, `✓` answered; the status line lists windows in all projects that wait for you.
 
 ## Setup
 
