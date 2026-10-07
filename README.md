@@ -6,19 +6,25 @@ tmux project menu that keeps [Claude Code](https://docs.claude.com/en/docs/claud
 - `c` — run claude in a window. The window is bound to a Claude Code session id in `~/.config/p/sessions.tsv`; next time `c` in that window resumes the same conversation.
 - `p restore` (menu `r`) — after tmux dies, recreate every saved window and resume its session.
 - `p forget` (menu `f`) — close a window and drop it from the manifest.
+- Agent state next to every window name: `◐` working, `!` waiting for you, `✓` answered.
 
 ## Setup
 
 ```bash
-cp p c ~/bin/ && cp tmux.conf ~/.tmux.conf
+cp p c agent-status ~/bin/ && cp tmux.conf ~/.tmux.conf
 ```
 
-Edit the `PROJECTS` array at the top of `p`. Requires `uuidgen`.
+Merge `claude-hooks.json` into `~/.claude/settings.json` and edit the `PROJECTS`
+array at the top of `p`. Requires `uuidgen`.
 
-## Manifest
+## Agent state
 
-```
-project ⇥ window ⇥ directory ⇥ session id
-```
+Claude Code hooks call `agent-status work|ask|done|clear`, which sets the tmux
+window option `@agent`; `window-status-format` and the menu display it.
 
-`c` passes a pre-generated id with `claude --session-id`, so the binding is known before the session even starts.
+| Hook | State |
+|---|---|
+| `UserPromptSubmit`, `PostToolUse` | `◐` |
+| `Notification` (permission, elicitation), `PreToolUse` on `AskUserQuestion` | `!` |
+| `Stop` | `✓` |
+| `SessionEnd` | cleared |
