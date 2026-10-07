@@ -7,6 +7,7 @@
 #   p rename     rename a window together with its manifest row (F5)
 #   p add        register a project (name + directory)   p remove   unregister it
 #   p bind       (SessionStart hook) bind the session that just started in a window
+#   p waiting    (status line) windows of all projects where claude waits for you
 #   p help       cheat sheet (F7)
 # Projects live in ~/.config/p/projects.tsv ("name<TAB>dir"), edited via add/remove.
 #
@@ -14,7 +15,8 @@
 # `p claude`: if ~/.config/p/sessions.tsv has a row "project window dir id"
 # and the transcript still exists — claude --resume, otherwise a new id and row.
 # Any other claude in a window (by hand, --resume, /resume, /clear) is bound by
-# the SessionStart hook → `p bind`.
+# the SessionStart hook → `p bind`. When the tmux server starts again (crash,
+# reboot), tmux.conf and the menu itself run restore automatically.
 # Leaving claude drops you to bash; `exit` there removes the window from the
 # manifest (EXIT trap in ~/.bashrc), so restore only brings back open work.
 
@@ -103,6 +105,13 @@ bind_session() {       # SessionStart hook: window ← session_id from stdin
     mv "$tmp" "$MANIFEST"
 }
 
+waiting() {            # status line: "! waiting: shop/api docs/intro", skip the current window
+    local w
+    w=$(tmux list-windows -a -F "#{window_id}	#{@agent}	#S/#W" 2>/dev/null |
+        awk -F'\t' -v cur="$1" '$2=="!" && $1!=cur {print $3}' | paste -sd' ')
+    [ -n "$w" ] && printf '#[fg=colour196,bold]! waiting: %s #[default] ' "$w"
+}
+
 rename() {             # F5: rename-window + the same key in the manifest
     local wid=$1 new=$2 proj old tmp
     [ -n "$wid" ] && [ -n "$new" ] || return
@@ -172,6 +181,10 @@ restore() {
     local proj tab cwd id made=0 skipped=0
     [ -s "$MANIFEST" ] || { echo "  manifest is empty: $MANIFEST"; return; }
 
+    # restore may start twice (menu and tmux.conf) — the second one waits and duplicates nothing
+    exec 9>>"$MANIFEST.lock"
+    flock -w 60 9 || { echo "  ✗ another restore is still running"; return 1; }
+
     while IFS=$'\t' read -r proj tab cwd id; do
         [ -z "$proj" ] && continue
         [ -z "$tab" ] && { echo "  ✗ $proj — row without a window name (remove it with f)"; continue; }
@@ -191,6 +204,7 @@ restore() {
 
     echo
     echo "  restored windows: $made, already open: $skipped"
+    exec 9>&-
 }
 
 forget() {
@@ -229,7 +243,8 @@ help() {
   Switch windows        F3 / F4       Detach        F6
   Rename                F5 — the session stays bound to the window
 
-  tmux crashed          p → r — every saved window comes back with its session
+  tmux crashed          do nothing: sessions come back when tmux starts
+                        (manually: p → r)
   Done with a task      leave claude (/exit), then type  exit  in the shell —
                         the window closes and leaves the manifest.
                         Without exit the window stays restorable.
@@ -240,6 +255,7 @@ help() {
 
   Agent state           next to the window name and in the menu:
                         ◐ working   ! waiting for you   ✓ answered
+  Waiting elsewhere     right side of the status line: "! waiting: project/window …"
 
   Manifest: ~/.config/p/sessions.tsv   Script: ~/bin/p  (c → p claude)
 TXT
@@ -262,11 +278,18 @@ case "$1" in
     rename)  rename "$2" "$3"; exit ;;
     restore) restore; exit ;;
     bind)    bind_session; exit 0 ;;
+    waiting) waiting "$2"; exit 0 ;;
     add)     shift; add_project "$@"; exit ;;
     remove)  shift; remove_project "$@"; exit ;;
     forget)  forget;  exit ;;
     help)    help; read -rp "  Enter → close"; exit ;;
 esac
+
+if ! tmux ls >/dev/null 2>&1 && [ -s "$MANIFEST" ]; then
+    echo
+    echo "  tmux is not running — restoring saved sessions:"
+    restore
+fi
 
 open=$(tmux ls -F '#S' 2>/dev/null)
 echo
