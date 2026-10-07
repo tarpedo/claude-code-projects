@@ -17,8 +17,9 @@ cp p agent-status ~/bin/ && ln -s p ~/bin/c && cp tmux.conf ~/.tmux.conf
 cat bashrc.snippet >> ~/.bashrc
 ```
 
-Merge `claude-hooks.json` into `~/.claude/settings.json` and edit the `PROJECTS`
-array at the top of `p`. Requires `uuidgen`.
+Merge `claude-hooks.json` into `~/.claude/settings.json`, then register projects:
+`p add NAME DIR` (or menu `a`; `p remove` / menu `d` unregisters). They live in
+`~/.config/p/projects.tsv`. Requires `uuidgen`.
 
 ## Agent state
 

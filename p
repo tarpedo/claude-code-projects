@@ -5,8 +5,9 @@
 #   p restore    after tmux dies, recreate all windows from the manifest with claude
 #   p forget     close a window and drop it from the manifest
 #   p rename     rename a window together with its manifest row (F5)
+#   p add        register a project (name + directory)   p remove   unregister it
 #   p help       cheat sheet (F7)
-# Projects are listed in PROJECTS below.
+# Projects live in ~/.config/p/projects.tsv ("name<TAB>dir"), edited via add/remove.
 #
 # Every new window (F2), a project's first window and restore all run
 # `p claude`: if ~/.config/p/sessions.tsv has a row "project window dir id"
@@ -15,12 +16,8 @@
 # manifest (EXIT trap in ~/.bashrc), so restore only brings back open work.
 
 MANIFEST="${P_MANIFEST:-$HOME/.config/p/sessions.tsv}"
-mkdir -p "${MANIFEST%/*}"; touch "$MANIFEST"
-
-# name:directory — one tmux session per project
-PROJECTS=(
-    "example:$HOME/code/example"
-)
+PROJECTS="${P_PROJECTS:-$HOME/.config/p/projects.tsv}"
+mkdir -p "${MANIFEST%/*}"; touch "$MANIFEST" "$PROJECTS"
 
 ME="$HOME/bin/p"
 TAB_CMD="$ME claude; exec bash"     # what a new window runs
@@ -28,9 +25,10 @@ TAB_CMD="$ME claude; exec bash"     # what a new window runs
 [ "${0##*/}" = c ] && set -- claude "$@"     # old `c` → p claude
 
 names=(); paths=()
-for entry in "${PROJECTS[@]}"; do
-    names+=("${entry%%:*}"); paths+=("${entry#*:}")
-done
+while IFS=$'\t' read -r name path; do
+    [ -z "$name" ] && continue
+    names+=("$name"); paths+=("$path")
+done < "$PROJECTS"
 
 path_of() {            # project directory by name (empty if unknown)
     for i in "${!names[@]}"; do
@@ -86,6 +84,55 @@ rename() {             # F5: rename-window + the same key in the manifest
     tmp=$(mktemp)
     awk -F'\t' -v OFS='\t' -v p="$proj" -v o="$old" -v n="$new" \
         '$1==p && $2==o {$2=n} 1' "$MANIFEST" > "$tmp" && mv "$tmp" "$MANIFEST"
+}
+
+add_project() {        # p add [name] [dir]
+    local name=$1 dir=$2
+    [ -n "$name" ] || read -rp "  Project name (no spaces): " name
+    [ -n "$name" ] || return
+    if [[ ! $name =~ ^[A-Za-z0-9_-]+$ ]]; then
+        echo "  ✗ use letters, digits, - or _ (it becomes a tmux session name)"; return 1
+    fi
+    if [ -n "$(path_of "$name")" ]; then
+        echo "  ✗ project $name already exists: $(path_of "$name")"; return 1
+    fi
+    [ -n "$dir" ] || read -rp "  Directory [$PWD]: " dir
+    dir=${dir:-$PWD}; dir=${dir/#\~/$HOME}
+    [ -d "$dir" ] || { echo "  ✗ no such directory: $dir"; return 1; }
+    dir=$(cd "$dir" && pwd)
+    printf '%s\t%s\n' "$name" "$dir" >> "$PROJECTS"
+    echo "  ✓ added: $name → $dir"
+}
+
+remove_project() {     # p remove [name]
+    local name=$1 i n ans tmp saved
+    if [ -z "$name" ]; then
+        echo
+        for i in "${!names[@]}"; do
+            printf "  %2d) %-12s %s\n" $((i + 1)) "${names[$i]}" "${paths[$i]}"
+        done
+        echo
+        read -rp "  Remove project # (empty: cancel): " n
+        [[ $n =~ ^[0-9]+$ ]] && [ -n "${names[$((n - 1))]}" ] || return
+        name=${names[$((n - 1))]}
+    fi
+    [ -n "$(path_of "$name")" ] || { echo "  ✗ no such project: $name"; return 1; }
+    tmp=$(mktemp)
+    awk -F'\t' -v p="$name" '$1!=p' "$PROJECTS" > "$tmp" && mv "$tmp" "$PROJECTS"
+    echo "  ✓ $name removed from the list (directory untouched)"
+    saved=$(awk -F'\t' -v p="$name" '$1==p' "$MANIFEST" | wc -l)
+    if [ "$saved" -gt 0 ]; then
+        read -rp "  Also forget its $saved saved session(s)? [y/N] " ans
+        if [[ $ans =~ ^[yY] ]]; then
+            tmp=$(mktemp)
+            awk -F'\t' -v p="$name" '$1!=p' "$MANIFEST" > "$tmp" && mv "$tmp" "$MANIFEST"
+            echo "  ✓ sessions forgotten (claude transcripts are kept)"
+        else
+            echo "  sessions kept — p restore will still bring them back"
+        fi
+    fi
+    tmux has-session -t "=$name" 2>/dev/null \
+        && echo "  tmux session $name is still running — left as is"
 }
 
 restore() {
@@ -155,6 +202,9 @@ help() {
                         Without exit the window stays restorable.
   Forget from outside   p → f
 
+  Add project           p → a  (or p add name dir)
+  Remove project        p → d  (or p remove name) — directory untouched
+
   Agent state           next to the window name and in the menu:
                         ◐ working   ! waiting for you   ✓ answered
 
@@ -178,6 +228,8 @@ case "$1" in
     drop)    shift; drop "$@"; exit ;;
     rename)  rename "$2" "$3"; exit ;;
     restore) restore; exit ;;
+    add)     shift; add_project "$@"; exit ;;
+    remove)  shift; remove_project "$@"; exit ;;
     forget)  forget;  exit ;;
     help)    help; read -rp "  Enter → close"; exit ;;
 esac
@@ -198,12 +250,15 @@ echo
 echo "  ● open (windows listed)   ○ saved in the manifest, not running"
 echo "  claude in a window:  ◐ working   ! waiting for you   ✓ answered"
 echo "   r) restore all from manifest    f) forget a window    h) help"
+echo "   a) add project                  d) remove project from the list"
 echo
 read -rp "  Project #: " num
 case "$num" in
     r) restore; read -rp "  Enter → menu"; exec "$0" ;;
     f) forget;  exec "$0" ;;
     h) help; read -rp "  Enter → menu"; exec "$0" ;;
+    a) add_project;    read -rp "  Enter → menu"; exec "$0" ;;
+    d) remove_project; read -rp "  Enter → menu"; exec "$0" ;;
 esac
 
 [[ $num =~ ^[0-9]+$ ]] || exit 0          # not a number (empty, letters) — quit
