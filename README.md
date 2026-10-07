@@ -32,3 +32,4 @@ window option `@agent`; `window-status-format` and the menu display it.
 | `Notification` (permission, elicitation), `PreToolUse` on `AskUserQuestion` | `!` |
 | `Stop` | `✓` |
 | `SessionEnd` | cleared |
+| `SessionStart` | `p bind` — binds sessions started by hand, via `/resume` or `/clear` (not `claude -p`) |
