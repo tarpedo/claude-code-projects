@@ -1,11 +1,22 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@BIN@/ccpr bind",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "~/bin/agent-status work",
+            "command": "@BIN@/ccpr status work",
             "timeout": 5
           }
         ]
@@ -17,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/bin/agent-status work",
+            "command": "@BIN@/ccpr status work",
             "timeout": 5
           }
         ]
@@ -29,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/bin/agent-status ask",
+            "command": "@BIN@/ccpr status ask",
             "timeout": 5
           }
         ]
@@ -41,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/bin/agent-status ask",
+            "command": "@BIN@/ccpr status ask",
             "timeout": 5
           }
         ]
@@ -52,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/bin/agent-status done",
+            "command": "@BIN@/ccpr status done",
             "timeout": 5
           }
         ]
@@ -63,18 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/bin/agent-status clear",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/bin/p bind",
+            "command": "@BIN@/ccpr status clear",
             "timeout": 5
           }
         ]

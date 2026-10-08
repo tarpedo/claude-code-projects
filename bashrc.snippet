@@ -1,6 +1,0 @@
-# `exit` in a tmux window → drop it from the p manifest (restore skips closed work).
-# On SIGHUP (tmux died / window killed) do nothing — that is what the manifest is for.
-if [ -n "$TMUX" ]; then
-    trap 'P_HUP=1; exit' HUP
-    trap '[ -z "$P_HUP" ] && ~/bin/p drop "$TMUX_PANE"' EXIT
-fi
