@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Test double for Claude Code: records its arguments; inside tmux it stays
+# alive like the real TUI would, outside it returns at once.
+printf '%s\n' "$*" >> "${CLAUDE_LOG:?}"
+[[ -n $TMUX ]] && exec sleep 60
+exit 0
