@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- The status bar lists every key again, F1 to F7 in order: F3/F4 and F6 had dropped out.
+- The F2 hint reads "new": it opens a new task window.
+
+### Removed
+- F8 (plain shell window): tmux's own `prefix c` does the same.
+
 ## [1.0.0] — 2026-10-08
 
 First public release. `p` becomes `ccpr`.
@@ -57,4 +66,5 @@ First public release. `p` becomes `ccpr`.
 ### Added
 - `p`: tmux project menu on F1 and function-key bindings.
 
+[Unreleased]: https://github.com/tarpedo/claude-code-projects/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/tarpedo/claude-code-projects/releases/tag/v1.0.0

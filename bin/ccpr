@@ -305,7 +305,6 @@ cmd_help() {
   Open a project        F1 (or `ccpr`) → number; a new project starts with claude
   New task              F2 → task name: claude starts and the window remembers it
   Back to a task        F2 → the same name (resumes), or `ccpr claude` in its shell
-  Plain shell window    F8 → name
   Prev / next window    F3 / F4          Detach    F6
   Rename window         F5 — the session stays bound to it
 
