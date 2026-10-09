@@ -52,7 +52,6 @@ The installer is idempotent and reversible (`./install.sh --uninstall`). It chan
 |---|---|
 | `F1` | project menu |
 | `F2` | new window running Claude (or back to the task with that name) |
-| `F8` | new plain shell window |
 | `F3` / `F4` | previous / next window |
 | `F5` | rename a window and keep its session bound |
 | `F6` | detach |
