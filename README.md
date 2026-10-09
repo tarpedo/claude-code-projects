@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.svg" alt="ccpr — Claude Code Projects" width="640"></p>
+
 # Claude Code Projects
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
