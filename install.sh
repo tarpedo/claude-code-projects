@@ -13,11 +13,16 @@ BIN_DIR=${BIN_DIR:-$HOME/.local/bin}
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ccpr"
 SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TMUX_CONF=$HOME/.tmux.conf
-BASHRC=$HOME/.bashrc
 SETTINGS=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json
 SOURCE_LINE="source-file $CONFIG_DIR/ccpr.tmux.conf"
 
 say() { printf '  %s\n' "$*"; }
+
+rc_files() {                     # shell startup files that get the exit trap
+    echo "$HOME/.bashrc"
+    # zsh is the login shell on macOS
+    [[ ${SHELL##*/} == zsh || -f $HOME/.zshrc ]] && echo "$HOME/.zshrc"
+}
 
 render() {                       # render TEMPLATE → stdout with @BIN@ filled in
     sed "s|@BIN@|$BIN_DIR|g" "$SRC/share/$1"
@@ -59,7 +64,7 @@ PY
 
 do_install() {
     local dep
-    for dep in tmux claude uuidgen flock awk python3; do
+    for dep in tmux claude uuidgen awk python3; do
         command -v "$dep" >/dev/null || { say "✗ missing dependency: $dep"; exit 1; }
     done
 
@@ -72,9 +77,12 @@ do_install() {
     grep -qxF "$SOURCE_LINE" "$TMUX_CONF" ||
         { printf '\n%s\n' "$SOURCE_LINE" >> "$TMUX_CONF"; say "✓ $TMUX_CONF"; }
 
-    touch "$BASHRC"
-    grep -q '^# >>> ccpr >>>' "$BASHRC" ||
-        { printf '\n' >> "$BASHRC"; render bashrc.sh >> "$BASHRC"; say "✓ $BASHRC"; }
+    local rc
+    while read -r rc; do
+        touch "$rc"
+        grep -q '^# >>> ccpr >>>' "$rc" ||
+            { printf '\n' >> "$rc"; render shellrc.sh >> "$rc"; say "✓ $rc"; }
+    done < <(rc_files)
 
     [[ -f $SETTINGS ]] && cp "$SETTINGS" "$SETTINGS.bak-ccpr"
     hooks merge
@@ -85,15 +93,19 @@ do_install() {
 }
 
 do_uninstall() {
+    local rc
     rm -f "$BIN_DIR/ccpr" "$CONFIG_DIR/ccpr.tmux.conf"
     say "✓ removed $BIN_DIR/ccpr, ccpr.tmux.conf"
     if [[ -f $TMUX_CONF ]]; then
         grep -vxF "$SOURCE_LINE" "$TMUX_CONF" > "$TMUX_CONF.ccpr-tmp" || true
         mv "$TMUX_CONF.ccpr-tmp" "$TMUX_CONF"
     fi
-    if [[ -f $BASHRC ]]; then
-        sed -i '/^# >>> ccpr >>>$/,/^# <<< ccpr <<<$/d' "$BASHRC"
-    fi
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        [[ -f $rc ]] || continue
+        # no `sed -i`: GNU and BSD disagree on it; `cat >` keeps the file's mode
+        sed '/^# >>> ccpr >>>$/,/^# <<< ccpr <<<$/d' "$rc" > "$rc.ccpr-tmp" &&
+            cat "$rc.ccpr-tmp" > "$rc" && rm -f "$rc.ccpr-tmp"
+    done
     [[ -f $SETTINGS ]] && hooks unmerge
     say "projects and saved sessions are kept in $CONFIG_DIR and ${XDG_STATE_HOME:-$HOME/.local/state}/ccpr"
 }

@@ -51,6 +51,17 @@ load helpers
     [ "$(cat "$CLAUDE_LOG")" = "--session-id $new" ]
 }
 
+@test "new session ids are lower case, as macOS uuidgen is not" {
+    mkdir -p "$BATS_TEST_TMPDIR/mac"
+    printf '#!/bin/sh\necho 0F8E2C4A-7B1D-4E53-9A26-C3D5B8E1F047\n' > "$BATS_TEST_TMPDIR/mac/uuidgen"
+    chmod +x "$BATS_TEST_TMPDIR/mac/uuidgen"
+    PATH="$BATS_TEST_TMPDIR/mac:$PATH"
+    manifest_row demo main "$HOME/work" 11111111-1111-1111-1111-111111111111
+    ccpr restore
+    wait_for_claude 1
+    [ "$(cut -f4 "$MANIFEST")" = 0f8e2c4a-7b1d-4e53-9a26-c3d5b8e1f047 ]
+}
+
 @test "restore is idempotent" {
     manifest_row demo main "$HOME/work" 11111111-1111-1111-1111-111111111111
     ccpr restore
@@ -59,12 +70,24 @@ load helpers
     [ "$(windows demo)" = "main" ]
 }
 
+@test "restore takes over a lock left by a dead process" {
+    manifest_row demo main "$HOME/work" 11111111-1111-1111-1111-111111111111
+    sh -c 'exit 0' & dead=$!
+    wait "$dead"
+    mkdir "$MANIFEST.restore-lock"
+    echo "$dead" > "$MANIFEST.restore-lock/pid"
+    run ccpr restore
+    [ "$status" -eq 0 ]
+    [[ $output == *"restored: 1"* ]]
+    [ ! -e "$MANIFEST.restore-lock" ]
+}
+
 @test "restore falls back to the project directory" {
     ccpr add demo "$HOME/work"
     manifest_row demo main "$HOME/gone" 11111111-1111-1111-1111-111111111111
     run ccpr restore
     [ "$status" -eq 0 ]
-    [ "$(tmux display-message -p -t '=demo:' '#{pane_current_path}')" = "$HOME/work" ]
+    [ "$(cd -P "$(tmux display-message -p -t '=demo:' '#{pane_current_path}')" && pwd)" = "$(cd -P "$HOME/work" && pwd)" ]
 }
 
 @test "rename moves the binding and refuses duplicates" {
@@ -73,7 +96,7 @@ load helpers
     ccpr restore
     wid=$(tmux list-windows -t =demo -F '#{window_id} #W' | awk '$2=="one" {print $1}')
     ccpr rename "$wid" uno
-    [ "$(cut -f2 "$MANIFEST" | paste -sd'|')" = "uno|two" ]
+    [ "$(cut -f2 "$MANIFEST" | paste -sd'|' -)" = "uno|two" ]
     run ccpr rename "$wid" two
     [ "$status" -eq 1 ]
     [ "$(windows demo)" = "uno|two" ]

@@ -5,8 +5,11 @@ load helpers
 INSTALL="$BATS_TEST_DIRNAME/../install.sh"
 
 setup_file() {
-    # install.sh checks dependencies; uuidgen/flock may be absent in containers
-    command -v uuidgen flock python3 >/dev/null || skip "missing tools"
+    # install.sh checks dependencies; uuidgen may be absent in containers
+    local tool
+    for tool in uuidgen python3; do
+        command -v "$tool" >/dev/null || skip "missing $tool"
+    done
 }
 
 @test "install wires tmux, bash and Claude Code hooks once" {
@@ -36,4 +39,12 @@ setup_file() {
     [ "$(grep -v '^$' "$HOME/.tmux.conf")" = 'set -g mouse on' ]
     [ "$(grep -v '^$' "$HOME/.bashrc")" = 'alias ll="ls -l"' ]
     [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])))' "$HOME/.claude/settings.json")" = "{'model': 'opus'}" ]
+}
+
+@test "zsh gets the same exit trap, and loses it on uninstall" {
+    echo 'setopt autocd' > "$HOME/.zshrc"
+    "$INSTALL" && "$INSTALL"
+    [ "$(grep -c '>>> ccpr >>>' "$HOME/.zshrc")" -eq 1 ]
+    "$INSTALL" --uninstall
+    [ "$(grep -v '^$' "$HOME/.zshrc")" = 'setopt autocd' ]
 }

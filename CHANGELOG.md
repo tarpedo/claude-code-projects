@@ -4,14 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] — 2026-10-10
+
+Runs on macOS.
+
+### Added
+- macOS support: bash 3.2, BSD userland, no `/proc` and no `flock` needed.
+- zsh: the installer adds the exit trap to `~/.zshrc` too when zsh is the login shell or `~/.zshrc` exists.
+- `make test-bash32` runs the suite under bash 3.2 in Docker.
+- A logo.
+
+### Changed
+- `restore` serializes on a `mkdir` lock instead of `flock`; a lock left by a dead process is taken over.
+- New session ids are lower-cased (macOS `uuidgen` prints upper case).
+- The status bar hints list F1 to F7 in order, F2 reads "new".
 
 ### Fixed
-- The status bar lists every key again, F1 to F7 in order: F3/F4 and F6 had dropped out.
-- The F2 hint reads "new": it opens a new task window.
+- F3/F4 and F6 were missing from the status bar.
+- Entering `0` in "remove project" removed the last project.
 
 ### Removed
 - F8 (plain shell window): tmux's own `prefix c` does the same.
+- `flock` from the dependencies.
 
 ## [1.0.0] — 2026-10-08
 
@@ -66,5 +80,5 @@ First public release. `p` becomes `ccpr`.
 ### Added
 - `p`: tmux project menu on F1 and function-key bindings.
 
-[Unreleased]: https://github.com/tarpedo/claude-code-projects/compare/v1.0.0...HEAD
+[1.1.0]: https://github.com/tarpedo/claude-code-projects/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/tarpedo/claude-code-projects/releases/tag/v1.0.0

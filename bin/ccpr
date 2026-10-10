@@ -22,15 +22,18 @@
 #   ccpr bind               SessionStart hook: bind the session that just started
 #   ccpr status STATE       agent state glyph: work ◐ | ask ! | done ✓ | clear
 #   ccpr waiting [WID]      status-line segment listing windows waiting for you
-#   ccpr drop PANE          forget the window of PANE (bash EXIT trap)
+#   ccpr drop PANE          forget the window of PANE (shell EXIT trap)
+#
+# Portable to macOS: bash 3.2, BSD userland, no /proc or flock.
 
 set -o pipefail
 
-readonly VERSION=1.0.0
+readonly VERSION=1.1.0
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ccpr"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/ccpr"
 PROJECTS="${CCPR_PROJECTS:-$CONFIG_DIR/projects.tsv}"
 MANIFEST="${CCPR_MANIFEST:-$STATE_DIR/sessions.tsv}"
+RESTORE_LOCK=$MANIFEST.restore-lock
 SELF=$(readlink -f "${BASH_SOURCE[0]}")
 TAB_CMD="'$SELF' claude; exec \"\${SHELL:-bash}\""   # what a new window runs
 
@@ -91,6 +94,23 @@ drop_row() {                     # drop_row PROJECT WINDOW
     rewrite "$MANIFEST" -v p="$1" -v w="$2" '!($1==p && $2==w)'
 }
 
+lock() {                         # lock DIR — mkdir mutex (flock is not on macOS)
+    local i holder
+    for (( i = 0; i < 600; i++ )); do
+        mkdir "$1" 2>/dev/null && { echo $$ > "$1/pid"; return 0; }
+        holder=$(cat "$1/pid" 2>/dev/null)
+        # a holder that died without unlocking leaves a stale lock: take it over
+        [[ -n $holder ]] && ! kill -0 "$holder" 2>/dev/null && rm -rf "$1"
+        sleep 0.1
+    done
+    return 1
+}
+
+proc_cwd() {                     # proc_cwd PID → working directory of PID
+    readlink "/proc/$1/cwd" 2>/dev/null ||
+        lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'
+}
+
 transcript_exists() {            # Claude Code keeps transcripts as <id>.jsonl
     compgen -G "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/$1.jsonl" >/dev/null
 }
@@ -115,21 +135,22 @@ cmd_claude() {
     fi
 
     # no binding yet, or the transcript was cleaned up: start a fresh session
-    id=$(uuidgen)
+    id=$(uuidgen | tr 'A-F' 'a-f')        # macOS uuidgen prints upper case
     bind_row "$project" "$window" "$PWD" "$id"
     exec claude --session-id "$id" "$@"
 }
 
 cmd_bind() {
     [[ -n $TMUX_PANE ]] || return 0
-    local sid pid claude_pid pane_pid project window dir
+    local sid pid comm claude_pid pane_pid project window dir
     sid=$(grep -oE '"session_id" *: *"[0-9a-f-]{36}"' | grep -oE '[0-9a-f-]{36}')
     [[ -n $sid ]] || return 0
 
     # the nearest claude ancestor is the session that fired the hook
     pid=$$
     while pid=$(ps -o ppid= -p "$pid" | tr -d ' ') && (( ${pid:-1} > 1 )); do
-        [[ $(ps -o comm= -p "$pid") == claude ]] && { claude_pid=$pid; break; }
+        comm=$(ps -o comm= -p "$pid")       # a full path on macOS
+        [[ ${comm##*/} == claude ]] && { claude_pid=$pid; break; }
     done
     [[ -n $claude_pid ]] || return 0
 
@@ -137,15 +158,15 @@ cmd_bind() {
     pane_pid=$(tmx "$TMUX_PANE" '#{pane_pid}')
     [[ $claude_pid == "$pane_pid" ||
        $(ps -o ppid= -p "$claude_pid" | tr -d ' ') == "$pane_pid" ]] || return 0
-    tr '\0' ' ' < "/proc/$claude_pid/cmdline" |
-        grep -qE ' (-p|--print)( |$)' && return 0
+    ps -o args= -p "$claude_pid" | grep -qE ' (-p|--print)( |$)' && return 0
 
     project=$(tmx "$TMUX_PANE" '#S')
     window=$(tmx "$TMUX_PANE" '#W')
     [[ -n $window ]] || return 0
     [[ $(session_id "$project" "$window") == "$sid" ]] && return 0
 
-    dir=$(readlink "/proc/$claude_pid/cwd") || dir=$PWD
+    dir=$(proc_cwd "$claude_pid")
+    [[ -n $dir ]] || dir=$PWD
     bind_row "$project" "$window" "$dir" "$sid"
 }
 
@@ -169,7 +190,7 @@ cmd_status() {
 cmd_waiting() {                  # every window whose agent waits, except WID
     local list
     list=$(tmux list-windows -a -F $'#{window_id}\t#{@agent}\t#S/#W' 2>/dev/null |
-        awk -F'\t' -v cur="$1" '$2=="!" && $1!=cur {print $3}' | paste -sd' ')
+        awk -F'\t' -v cur="$1" '$2=="!" && $1!=cur {print $3}' | paste -sd' ' -)
     [[ -n $list ]] && printf '#[fg=colour196,bold]! waiting: %s #[default] ' "$list"
     return 0
 }
@@ -222,7 +243,7 @@ cmd_remove() {
         done
         echo
         read -erp "  Remove project # (empty: cancel): " n
-        [[ $n =~ ^[0-9]+$ && -n ${names[n - 1]} ]] || return 0
+        [[ $n =~ ^[0-9]+$ ]] && (( n >= 1 )) && [[ -n ${names[n - 1]} ]] || return 0
         name=${names[n - 1]}
     fi
     [[ -n $(project_dir "$name") ]] || die "no such project: $name"
@@ -230,7 +251,7 @@ cmd_remove() {
     rewrite "$PROJECTS" -v p="$name" '$1!=p'
     say "✓ removed $name from the list (directory untouched)"
 
-    saved=$(awk -F'\t' -v p="$name" '$1==p' "$MANIFEST" | wc -l)
+    saved=$(awk -F'\t' -v p="$name" '$1==p {n++} END {print n+0}' "$MANIFEST")
     if (( saved > 0 )); then
         read -erp "  Also forget its $saved saved session(s)? [y/N] " answer
         if [[ $answer == [yY]* ]]; then
@@ -249,8 +270,8 @@ cmd_restore() {
     [[ -s $MANIFEST ]] || { say "manifest is empty: $MANIFEST"; return 0; }
 
     # restore may be started twice at once (menu and tmux.conf): serialize
-    exec 9>>"$MANIFEST.lock"
-    flock -w 60 9 || die "another restore is still running"
+    lock "$RESTORE_LOCK" || die "another restore is still running"
+    trap 'rm -rf "$RESTORE_LOCK"' EXIT
 
     while IFS=$'\t' read -r project window dir id; do
         [[ -n $project ]] || continue
@@ -261,10 +282,9 @@ cmd_restore() {
         if has_window "$project" "$window"; then
             skipped=$((skipped + 1)); continue
         elif has_session "$project"; then
-            tmux new-window -d -t "=$project:" -n "$window" -c "$dir" "$TAB_CMD" 9>&-
+            tmux new-window -d -t "=$project:" -n "$window" -c "$dir" "$TAB_CMD"
         else
-            # 9>&-: a tmux server started here must not inherit the lock
-            tmux new-session -d -s "$project" -n "$window" -c "$dir" "$TAB_CMD" 9>&-
+            tmux new-session -d -s "$project" -n "$window" -c "$dir" "$TAB_CMD"
         fi || { say "✗ $project/$window: tmux refused to create the window"; failed=$((failed + 1)); continue; }
         created=$((created + 1))
         say "● $project/$window  ${id:0:8}"
@@ -272,14 +292,14 @@ cmd_restore() {
 
     echo
     say "restored: $created, already running: $skipped$( ((failed)) && echo ", failed: $failed")"
-    exec 9>&-
+    rm -rf "$RESTORE_LOCK"; trap - EXIT
     (( failed == 0 ))
 }
 
 cmd_forget() {
-    local -a rows
-    local n i project window dir id
-    mapfile -t rows < "$MANIFEST"
+    local -a rows=()
+    local row n i project window dir id
+    while IFS= read -r row; do rows+=("$row"); done < "$MANIFEST"
     (( ${#rows[@]} )) || { say "manifest is empty"; return 0; }
     echo
     for i in "${!rows[@]}"; do
@@ -337,10 +357,10 @@ cmd_menu() {
     for i in "${!names[@]}"; do
         name=${names[i]}
         if grep -qxF -- "$name" <<< "$open"; then
-            windows=$(tmux list-windows -t "=$name" -F '#W#{@agent}' | paste -sd' ')
+            windows=$(tmux list-windows -t "=$name" -F '#W#{@agent}' | paste -sd' ' -)
             printf '  %2d) %-12s ● %s\n' $((i + 1)) "$name" "$windows"
         else
-            saved=$(awk -F'\t' -v p="$name" '$1==p {print $2}' "$MANIFEST" | paste -sd' ')
+            saved=$(awk -F'\t' -v p="$name" '$1==p {print $2}' "$MANIFEST" | paste -sd' ' -)
             printf '  %2d) %-12s %s\n' $((i + 1)) "$name" "${saved:+○ $saved}"
         fi
     done
