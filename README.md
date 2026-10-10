@@ -27,7 +27,21 @@ One bash script, `ccpr`, that turns tmux into a project manager for parallel AI 
 
 tmux-resurrect can restore windows and even relaunch `claude`, but it cannot know *which* conversation lived in which window. GUI agent managers exist, but they are mostly macOS apps. This project needs nothing beyond tmux, bash and an SSH session.
 
-## Install
+## Install with Claude Code
+
+Paste this prompt into Claude Code:
+
+```
+Install ccpr from https://github.com/tarpedo/claude-code-projects.
+Clone it, read README.md and install.sh, check the requirements and
+install whatever is missing, run ./install.sh, then reload tmux with
+`tmux source-file ~/.tmux.conf`. Ask me which projects to register
+and run `ccpr add NAME DIR` for each.
+```
+
+Claude checks the requirements, runs the installer and registers your projects. In the default permission mode it asks before each command, so you see every change before it is made.
+
+## Install without Claude Code
 
 Requirements: Linux or macOS 12.3+, bash ≥ 3.2, tmux ≥ 3.2, Claude Code, `uuidgen`, `python3` (installer only). On macOS the system bash and zsh are fine; only tmux is missing: `brew install tmux`.
 
