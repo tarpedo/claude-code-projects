@@ -29,7 +29,7 @@ tmux-resurrect can restore windows and even relaunch `claude`, but it cannot kno
 
 ## Install
 
-Requirements: Linux, bash ≥ 4, tmux ≥ 3.2, Claude Code, `uuidgen`, `flock`, `python3` (installer only).
+Requirements: Linux or macOS 12.3+, bash ≥ 3.2, tmux ≥ 3.2, Claude Code, `uuidgen`, `python3` (installer only). On macOS the system bash and zsh are fine; only tmux is missing: `brew install tmux`.
 
 ```bash
 git clone https://github.com/tarpedo/claude-code-projects.git
@@ -45,7 +45,7 @@ The installer is idempotent and reversible (`./install.sh --uninstall`). It chan
 |---|---|
 | `ccpr` | `$BIN_DIR` (default `~/.local/bin`) |
 | key bindings, status line, auto-restore | `~/.config/ccpr/ccpr.tmux.conf`, sourced from `~/.tmux.conf` |
-| `exit` trap that forgets closed windows | `~/.bashrc`, between `# >>> ccpr >>>` markers |
+| `exit` trap that forgets closed windows | `~/.bashrc`, and `~/.zshrc` for zsh users, between `# >>> ccpr >>>` markers |
 | Claude Code hooks | merged into `~/.claude/settings.json` (backup: `settings.json.bak-ccpr`) |
 
 ## Keys
@@ -69,7 +69,7 @@ shop      invoice  /srv/shop    0f8e2c4a-7b1d-4e53-9a26-c3d5b8e1f047
 
 **Binding.** `ccpr claude` looks up the current window in the manifest. If a row exists and Claude Code still has the transcript, it runs `claude --resume <id>`. Otherwise it generates an id, writes the row first, and runs `claude --session-id <id>`. Because ccpr chooses the id, it never has to guess which conversation belongs to a window.
 
-**Restore.** `ccpr restore` walks the manifest and creates missing sessions and windows, each running `ccpr claude`, so binding logic lives in one place. It is idempotent and runs under `flock`. `ccpr.tmux.conf` triggers it once per server lifetime, guarded by a server option, so reloading the config does not repeat it. The menu also triggers it when tmux is not running at all.
+**Restore.** `ccpr restore` walks the manifest and creates missing sessions and windows, each running `ccpr claude`, so binding logic lives in one place. It is idempotent, and a lock keeps two restores from running at once. `ccpr.tmux.conf` triggers it once per server lifetime, guarded by a server option, so reloading the config does not repeat it. The menu also triggers it when tmux is not running at all.
 
 **Closing.** When you leave Claude, the window drops to a shell. Typing `exit` there forgets the window. The trap deliberately ignores `SIGHUP`, so a dying tmux server never wipes the manifest. Anything you did not close explicitly survives a crash.
 
@@ -104,6 +104,7 @@ ccpr help | version
 
 ```bash
 make check      # shellcheck + bats
+make test-bash32  # the suite under bash 3.2 (the macOS system bash), in Docker
 ```
 
 Tests run against a throwaway tmux server, a temporary `HOME` and a stub `claude` (`test/stub/claude`), so they never touch your real sessions.
@@ -113,7 +114,6 @@ Tests run against a throwaway tmux server, a temporary `HOME` and a stub `claude
 - The window name is the key, so window names must be unique within a project.
 - Project names become tmux session names: `[A-Za-z0-9_-]+`.
 - ccpr restores windows and conversations, not pane layouts. Combine it with tmux-resurrect if you need layouts.
-- Linux only (`/proc`, `flock`).
 
 ## License
 

@@ -1,5 +1,6 @@
 # >>> ccpr >>>
 # `exit` in a tmux window forgets that window, so restore skips closed work.
+# Plain POSIX sh: the same block serves bash and zsh.
 # SIGHUP (tmux died, window killed) must not: that is what the manifest is for.
 if [ -n "$TMUX" ]; then
     trap 'CCPR_HUP=1; exit' HUP

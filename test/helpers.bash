@@ -44,4 +44,4 @@ wait_for_claude() {              # wait_for_claude N — until N claude starts
     return 1
 }
 
-windows() { tmux list-windows -t "=$1" -F '#W' | paste -sd'|'; }
+windows() { tmux list-windows -t "=$1" -F '#W' | paste -sd'|' -; }
