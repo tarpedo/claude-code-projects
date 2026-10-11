@@ -12,20 +12,28 @@ One bash script, `ccpr`, that turns tmux into a project manager for parallel AI 
 - **tmux crashes are a non-event.** When the tmux server starts again, every window you did not close comes back, each resuming its own session.
 - **See who is waiting for you.** Each window shows its agent state: `◐` working, `!` waiting for a permission or an answer, `✓` answered. The status line lists every window, in every project, where an agent is blocked on you.
 
-```
-   1) shop         ● main✓ invoice! import◐
-   2) blog         ○ drafts
-   3) docs
+![ccpr demo](docs/demo.gif)
 
-  ● running (windows)   ○ saved, not running   ◐ working  ! waiting  ✓ answered
-   r) restore all    f) forget a window    a) add project    d) remove project    h) help
-
-  Project #:
-```
+Two tasks in one project: `invoice` waits for a permission (`!`, and the status line says so from any window) while `import` answers (`✓`). Then tmux dies, and `ccpr` brings both windows back, each with its own conversation. The recording is also in [docs/demo.cast](docs/demo.cast): `asciinema play docs/demo.cast`.
 
 ## Why
 
 tmux-resurrect can restore windows and even relaunch `claude`, but it cannot know *which* conversation lived in which window. GUI agent managers exist, but they are mostly macOS apps. This project needs nothing beyond tmux, bash and an SSH session.
+
+## Alternatives
+
+| | ccpr | [agterm](https://github.com/umputun/agterm) | tmux-resurrect add-ons¹ | Claude Code [agent view](https://code.claude.com/docs/en/agent-view) |
+|---|---|---|---|---|
+| What it is | one bash script on top of tmux | a native terminal app | plugins for tmux-resurrect | built into Claude Code (research preview) |
+| Where it runs | Linux, macOS, over SSH | macOS 14+ on Apple Silicon | wherever tmux runs | wherever Claude Code runs |
+| How a window finds its conversation | ccpr picks the session id before Claude starts (`--session-id`) | does not track it: restores the layout and re-runs the captured command, or keeps processes alive with zmx | a hook records the id per pane, or it is matched by directory; `claude --resume` after resurrect restores the panes | sessions run under a per-user supervisor, not in your terminal |
+| After a crash | every window you did not close comes back with its conversation, on the next tmux start | layout and commands come back | panes come back when resurrect restores them | `claude respawn` restarts background sessions |
+| Who is waiting for you | a glyph on each window, and a status-line list across all projects | status glyphs in the sidebar, notifications | some show working/done in a popup | the view shows each session's state |
+| Agents | Claude Code | Claude Code, Codex, Pi, OpenCode and others | Claude Code; one also Codex, OpenCode, Pi | Claude Code |
+
+¹ [tmux-claude-continuity](https://github.com/MadAppGang/tmux-claude-continuity), [tmux-claude-resurrect](https://github.com/cookiecad/tmux-claude-resurrect), [tmux-assistant-resurrect](https://github.com/timvw/tmux-assistant-resurrect), [tmux-claude-session-manager](https://github.com/jongwoo315/tmux-claude-session-manager); for browsing and searching past sessions rather than restoring them, also [CoderMungan/tmux-claude-code](https://github.com/CoderMungan/tmux-claude-code) and [MaxGhenis/tmux-claude-code](https://github.com/MaxGhenis/tmux-claude-code).
+
+Pick agterm for a GUI terminal on a Mac, a resurrect add-on if tmux-resurrect already restores your layouts and resuming is all you miss, and agent view if you do not need tmux at all. ccpr is for tmux, often on a remote machine, where each task is a named window that must never lose its conversation, without tmux-resurrect.
 
 ## Install with Claude Code
 
@@ -67,7 +75,7 @@ The installer is idempotent and reversible (`./install.sh --uninstall`). It chan
 | Key | Action |
 |---|---|
 | `F1` | project menu |
-| `F2` | new window running Claude (or back to the task with that name) |
+| `F2` | new window running Claude, or back to the task with that name (switches to its window if it is open) |
 | `F3` / `F4` | previous / next window |
 | `F5` | rename a window and keep its session bound |
 | `F6` | detach |
@@ -85,7 +93,7 @@ shop      invoice  /srv/shop    0f8e2c4a-7b1d-4e53-9a26-c3d5b8e1f047
 
 **Restore.** `ccpr restore` walks the manifest and creates missing sessions and windows, each running `ccpr claude`, so binding logic lives in one place. It is idempotent, and a lock keeps two restores from running at once. `ccpr.tmux.conf` triggers it once per server lifetime, guarded by a server option, so reloading the config does not repeat it. The menu also triggers it when tmux is not running at all.
 
-**Closing.** When you leave Claude, the window drops to a shell. Typing `exit` there forgets the window. The trap deliberately ignores `SIGHUP`, so a dying tmux server never wipes the manifest. Anything you did not close explicitly survives a crash.
+**Closing.** When you leave Claude, the window drops to a shell. Typing `exit` there forgets the window; leaving a shell nested inside it does not. The trap deliberately ignores `SIGHUP`, so a dying tmux server never wipes the manifest. Anything you did not close explicitly survives a crash.
 
 **Hooks.** Claude Code hooks keep the binding and the state glyphs current:
 
@@ -125,7 +133,7 @@ Tests run against a throwaway tmux server, a temporary `HOME` and a stub `claude
 
 ## Limitations
 
-- The window name is the key, so window names must be unique within a project.
+- The window name is the key, so it must be unique within a project. ccpr keeps it so: `F2` switches to a window that is already open, `F5` refuses a taken name, and `ccpr claude` refuses to run in a second window with the same name.
 - Project names become tmux session names: `[A-Za-z0-9_-]+`.
 - ccpr restores windows and conversations, not pane layouts. Combine it with tmux-resurrect if you need layouts.
 
