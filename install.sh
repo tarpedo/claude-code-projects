@@ -77,11 +77,22 @@ do_install() {
     grep -qxF "$SOURCE_LINE" "$TMUX_CONF" ||
         { printf '\n%s\n' "$SOURCE_LINE" >> "$TMUX_CONF"; say "✓ $TMUX_CONF"; }
 
-    local rc
+    local rc block
+    block=$(render shellrc.sh)
     while read -r rc; do
         touch "$rc"
-        grep -q '^# >>> ccpr >>>' "$rc" ||
-            { printf '\n' >> "$rc"; render shellrc.sh >> "$rc"; say "✓ $rc"; }
+        if ! grep -q '^# >>> ccpr >>>$' "$rc"; then
+            printf '\n%s\n' "$block" >> "$rc"; say "✓ $rc"
+        else
+            # an older block: replace it in place (ENVIRON, as -v would eat backslashes)
+            BLOCK=$block awk '/^# >>> ccpr >>>$/ {print ENVIRON["BLOCK"]; skip=1; next}
+                /^# <<< ccpr <<<$/ {skip=0; next} !skip' "$rc" > "$rc.ccpr-tmp"
+            if cmp -s "$rc" "$rc.ccpr-tmp"; then
+                rm -f "$rc.ccpr-tmp"
+            else
+                cat "$rc.ccpr-tmp" > "$rc" && rm -f "$rc.ccpr-tmp"; say "✓ $rc (updated)"
+            fi
+        fi
     done < <(rc_files)
 
     [[ -f $SETTINGS ]] && cp "$SETTINGS" "$SETTINGS.bak-ccpr"

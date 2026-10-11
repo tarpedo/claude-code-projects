@@ -21,7 +21,7 @@ setup_file() {
     [ -x "$HOME/.local/bin/ccpr" ]
     [ "$(grep -c ccpr.tmux.conf "$HOME/.tmux.conf")" -eq 1 ]
     [ "$(grep -c '>>> ccpr >>>' "$HOME/.bashrc")" -eq 1 ]
-    grep -q "$HOME/.local/bin/ccpr claude" "$HOME/.config/ccpr/ccpr.tmux.conf"
+    grep -q "$HOME/.local/bin/ccpr open" "$HOME/.config/ccpr/ccpr.tmux.conf"
     run python3 -c 'import json,sys; c=json.load(open(sys.argv[1])); print(c["model"], len(c["hooks"]), len(c["hooks"]["Stop"]))' \
         "$HOME/.claude/settings.json"
     [ "$output" = "opus 7 2" ]
@@ -47,4 +47,14 @@ setup_file() {
     [ "$(grep -c '>>> ccpr >>>' "$HOME/.zshrc")" -eq 1 ]
     "$INSTALL" --uninstall
     [ "$(grep -v '^$' "$HOME/.zshrc")" = 'setopt autocd' ]
+}
+
+@test "reinstall replaces an older block in place" {
+    printf '%s\n' 'alias a=1' '# >>> ccpr >>>' 'old trap' '# <<< ccpr <<<' 'alias b=2' > "$HOME/.bashrc"
+    "$INSTALL"
+    [ -z "$(grep 'old trap' "$HOME/.bashrc")" ]   # a bare `! grep` never fails a bats test
+    grep -q 'pane_pid' "$HOME/.bashrc"
+    [ "$(grep -c '>>> ccpr >>>' "$HOME/.bashrc")" -eq 1 ]
+    [ "$(head -1 "$HOME/.bashrc")" = 'alias a=1' ]
+    [ "$(tail -1 "$HOME/.bashrc")" = 'alias b=2' ]
 }
