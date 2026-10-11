@@ -36,7 +36,7 @@ fake_transcript() {              # make Claude Code "know" session ID
 
 wait_for_claude() {              # wait_for_claude N — until N claude starts
     local _
-    for _ in $(seq 50); do
+    for _ in $(seq 100); do
         (( $(wc -l < "$CLAUDE_LOG") >= $1 )) && return 0
         sleep 0.1
     done
@@ -45,3 +45,12 @@ wait_for_claude() {              # wait_for_claude N — until N claude starts
 }
 
 windows() { tmux list-windows -t "=$1" -F '#W' | paste -sd'|' -; }
+
+eventually() {                   # eventually CMD… — retry CMD for up to 5 s
+    local _
+    for _ in $(seq 50); do
+        "$@" && return 0
+        sleep 0.1
+    done
+    return 1
+}
