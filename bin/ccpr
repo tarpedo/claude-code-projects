@@ -29,7 +29,7 @@
 
 set -o pipefail
 
-readonly VERSION=1.1.0
+readonly VERSION=1.1.1
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ccpr"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/ccpr"
 PROJECTS="${CCPR_PROJECTS:-$CONFIG_DIR/projects.tsv}"
