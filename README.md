@@ -7,7 +7,7 @@
 **Crash-proof [Claude Code](https://docs.claude.com/en/docs/claude-code) sessions in tmux.**
 One bash script, `ccpr`, that turns tmux into a project manager for parallel AI agents:
 
-- **Projects are tmux sessions, tasks are windows.** `F1` opens the project menu; `F2` opens a window with Claude for a new task.
+- **Projects are tmux sessions, tasks are windows.** `ccpr` (or `F1` inside tmux) opens the project menu; `F2` opens a window with Claude for a new task.
 - **Every window remembers its conversation.** A project/window pair is bound to a Claude Code session id. `F2` with an existing task name brings you back to the same conversation.
 - **tmux crashes are a non-event.** When the tmux server starts again, every window you did not close comes back, each resuming its own session.
 - **See who is waiting for you.** Each window shows its agent state: `◐` working, `!` waiting for a permission or an answer, `✓` answered. The status line lists every window, in every project, where an agent is blocked on you.
@@ -59,6 +59,7 @@ cd claude-code-projects
 ./install.sh                     # BIN_DIR=~/bin ./install.sh to choose the location
 tmux source-file ~/.tmux.conf
 ccpr add myproject ~/code/myproject
+ccpr                             # project menu; F1 inside tmux
 ```
 
 The installer is idempotent and reversible (`./install.sh --uninstall`). It changes:

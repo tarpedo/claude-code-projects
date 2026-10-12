@@ -89,7 +89,7 @@ load helpers
     manifest_row demo main "$HOME/gone" 11111111-1111-1111-1111-111111111111
     run ccpr restore
     [ "$status" -eq 0 ]
-    [ "$(tmux display-message -p -t '=demo:' '#{pane_current_path}')" = "$HOME/work" ]
+    [ "$(cd -P "$(tmux display-message -p -t '=demo:' '#{pane_current_path}')" && pwd)" = "$(cd -P "$HOME/work" && pwd)" ]
 }
 
 @test "rename moves the binding and refuses duplicates" {

@@ -100,7 +100,7 @@ do_install() {
 
     case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "! add $BIN_DIR to PATH" ;; esac
     echo
-    say "Next: tmux source-file ~/.tmux.conf; ccpr add NAME DIR; press F1."
+    say "Next: tmux source-file ~/.tmux.conf; ccpr add NAME DIR; run ccpr."
 }
 
 do_uninstall() {
